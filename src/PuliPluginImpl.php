@@ -98,6 +98,17 @@ class PuliPluginImpl
      */
     private $initialized = false;
 
+    /**
+     * A boolean that remembers if we asked the user if we want to download Puli if it is missing.
+     * @var bool
+     */
+    private $downloadProposed = false;
+
+    /**
+     * @var string|null
+     */
+    private $customPuliBinPath = null;
+
     public function __construct(Event $event, PuliRunner $puliRunner = null)
     {
         $this->composer = $event->getComposer();
@@ -207,8 +218,15 @@ class PuliPluginImpl
             try {
                 // Add Composer's bin directory in case the "puli" executable is
                 // installed with Composer
-                $this->puliRunner = new PuliRunner($this->config->get('bin-dir'));
+                $this->puliRunner = new PuliRunner($this->customPuliBinPath ?: $this->config->get('bin-dir'));
             } catch (RuntimeException $e) {
+                // If we have not asked for download before
+                if (!$this->downloadProposed) {
+                    if ($this->proposeDownload()) {
+                        return;
+                    }
+                }
+
                 $this->printWarning('Plugin initialization failed', $e);
                 $this->runPostAutoloadDump = false;
                 $this->runPostInstall = false;
@@ -223,6 +241,30 @@ class PuliPluginImpl
             $this->runPostAutoloadDump = false;
             $this->runPostInstall = false;
         }
+    }
+
+    /**
+     * Ask the user if we should download Puli
+     * @return bool true if we changed the state of this object. Ie if we should try initialize again.
+     */
+    private function proposeDownload()
+    {
+        if ($this->io->askConfirmation('The "puli"/"puli.phar" tool could not be found on your system. Do you want'.
+            'to download it now to the current directory?')) {
+            file_put_contents('puli.phar', file_get_contents('https://github.com/puli/cli/releases/download/1.0.0-beta10/puli.phar'));
+        }
+
+        if (!$this->io->askConfirmation('Do you want to download "puli.phar" to a different path?', false)) {
+            return false;
+        }
+
+        $path = $this->io->ask('Choose your install path:', 'puli.phar');
+        if (substr($path, 0, 1) !== '/') {
+            $path = getcwd() . '/' . $path;
+        }
+        $this->customPuliBinPath = $path;
+
+        return true;
     }
 
     /**
