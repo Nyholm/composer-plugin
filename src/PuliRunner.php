@@ -35,8 +35,9 @@ class PuliRunner
      * Creates a new runner.
      *
      * @param string|null $binDir The path to Composer's "bin-dir".
+     * @param string|null $absoluteBinPath The path to a Puli executable.
      */
-    public function __construct($binDir = null)
+    public function __construct($binDir = null, $absoluteBinPath = null)
     {
         $phpFinder = new PhpExecutableFinder();
 

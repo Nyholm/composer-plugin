@@ -216,13 +216,13 @@ class PuliPluginImpl
         // Keep the manually set runner
         if (null === $this->puliRunner) {
             try {
-                // Add Composer's bin directory in case the "puli" executable is
-                // installed with Composer
-                $this->puliRunner = new PuliRunner($this->customPuliBinPath ?: $this->config->get('bin-dir'));
+                // Add Composer's bin directory in case the "puli" executable is installed with Composer
+                $this->puliRunner = new PuliRunner($this->config->get('bin-dir'), $this->customPuliBinPath);
             } catch (RuntimeException $e) {
                 // If we have not asked for download before
                 if (!$this->downloadProposed) {
                     if ($this->proposeDownload()) {
+                        $this->initialize();
                         return;
                     }
                 }
@@ -230,6 +230,8 @@ class PuliPluginImpl
                 $this->printWarning('Plugin initialization failed', $e);
                 $this->runPostAutoloadDump = false;
                 $this->runPostInstall = false;
+
+                return;
             }
         }
 
@@ -249,20 +251,24 @@ class PuliPluginImpl
      */
     private function proposeDownload()
     {
+        $this->downloadProposed = true;
         if ($this->io->askConfirmation('The "puli"/"puli.phar" tool could not be found on your system. Do you want'.
-            'to download it now to the current directory?')) {
-            file_put_contents('puli.phar', file_get_contents('https://github.com/puli/cli/releases/download/1.0.0-beta10/puli.phar'));
+            'to download it now to the current directory? (Y/n) ')) {
+            $this->downloadPuliBinary('puli.phar');
+
+            return true;
         }
 
-        if (!$this->io->askConfirmation('Do you want to download "puli.phar" to a different path?', false)) {
+        if (!$this->io->askConfirmation('Do you want to download "puli.phar" to a different path? (y/N) ', false)) {
             return false;
         }
 
-        $path = $this->io->ask('Choose your install path:', 'puli.phar');
+        $path = $this->io->ask('Choose your install path: [puli.phar] ', 'puli.phar');
         if (substr($path, 0, 1) !== '/') {
             $path = getcwd() . '/' . $path;
         }
         $this->customPuliBinPath = $path;
+        $this->downloadPuliBinary($path);
 
         return true;
     }
@@ -746,5 +752,20 @@ class PuliPluginImpl
                 self::MAX_CLI_VERSION
             ));
         }
+    }
+
+    /**
+     * @param $downloadPath
+     */
+    private function downloadPuliBinary($downloadPath)
+    {
+        $this->io->write('Downloading puli.phar...');
+
+
+        file_put_contents(
+            $downloadPath,
+            file_get_contents('https://github.com/puli/cli/releases/download/1.0.0-beta10/puli.phar')
+        );
+        chmod($downloadPath, 775);
     }
 }
